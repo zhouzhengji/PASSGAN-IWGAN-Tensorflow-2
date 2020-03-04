@@ -323,5 +323,4 @@ fabric.properties
 .idea/caches/build_file_checksums.ser
 
 OUTPUT/
-
-DATA/rockyou.txt
+data/rockyou1.tsv
