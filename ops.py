@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import self as self
+from keras_applications.densenet import models
 from tensorflow import optimizers
 from tensorflow import reduce_mean
 from tensorflow.python.keras import layers
@@ -123,10 +124,10 @@ class ResBlock():
     def __init__(self, dim):
         super(ResBlock, self).__init__()
         self.res_block = tf.keras.Sequential(
-            tf.keras.activations.relu(True),
-            tf.keras.layers.Conv1D(dim, dim, 5, padding=2),  # nn.Linear(DIM, DIM),
-            tf.keras.activations.relu(True),
-            tf.keras.layers.Conv1D(dim, dim, 5, padding=2),  # nn.Linear(DIM, DIM),
+            tf.nn.relu(True), #unexpected data type <string>
+            tf.keras.layers.Conv1D(dim, dim, 5, padding=2),
+            tf.nn.relu(True),
+            tf.keras.layers.Conv1D(dim, dim, 5, padding=2),
         )
 
     def forward(self, input):
@@ -134,14 +135,15 @@ class ResBlock():
         return input + (0.3 * output)
 
 
-class BuildGenerator(self):
-    def __init__(self):
+class BuildGenerator(layers.Layer):
+    def __init__(self, layer_dim, seq_len, vocab_size):
         super(BuildGenerator, self).__init__()
-        dim = self.layer_dim
-        seq_len = self.seq_len
-        vocab_size = self.vocab_size
+        dim = layer_dim
+        self.dim = layer_dim
+        self.seq_len = seq_len
+        vocab_size = vocab_size
 
-        self.fc1 = tf.keras.activations.linear(128, dim * seq_len)
+        self.fc1 = tf.keras.activations.linear(dim * seq_len)
         self.block = tf.keras.Sequential(
             ResBlock(dim),
             ResBlock(dim),
@@ -149,7 +151,7 @@ class BuildGenerator(self):
             ResBlock(dim),
             ResBlock(dim),
         )
-        self.conv1d = tf.keras.layers.Conv1D(self.vocab_size, dim, 1)
+        self.conv1 = tf.keras.layers.Conv1D(vocab_size, dim, 1)
         self.softmax = tf.keras.activations.softmax()
 
     def forward(self, noise):
@@ -165,15 +167,18 @@ class BuildGenerator(self):
         output = output.view(batch_size * self.seq_len, -1)
         output = self.softmax(output)
         # (BATCH_SIZE, SEQ_LEN, len(charmap))
-        return output.view(shape)
+        return models.Model(output.view(shape), name='Generator')
+
+    # return models.Model(inputs, x, name='Generator')
 
 
-class BuildDiscriminator(self):
-    def __init__(self):
+class BuildDiscriminator(layers.Layer):
+    def __init__(self, layer_dim, seq_len, vocab_size):
         super(BuildDiscriminator, self).__init__()
-        dim = self.layer_dim
-        seq_len = self.seq_len
-        vocab_size = self.vocab_size
+        dim = layer_dim
+        self.dim = layer_dim
+        self.seq_len = seq_len
+        vocab_size = vocab_size
 
         self.fc1 = tf.keras.activations.linear(128, dim * seq_len)
         self.block = tf.keras.Sequential(
@@ -183,13 +188,14 @@ class BuildDiscriminator(self):
             ResBlock(dim),
             ResBlock(dim),
         )
-        self.conv1d = tf.keras.layers.Conv1D(self.vocab_size, dim, 1)
+        self.conv1d = tf.keras.layers.Conv1D(vocab_size, dim, 1)
         self.linear = tf.keras.activations.linear(seq_len * dim, 1)
 
     def forward(self, input):
-        output = input.transpose(1, 2)
-        output = self.conv1d(output)
-        output = self.block(output)
-        output = output.view(-1, self.seq_len * self.layer_dim)
-        output - self.linear(output)
-        return output
+        x = input.transpose(1, 2)
+        x = self.conv1d(x)
+        x = self.block(x)
+        x = x.view(-1, self.seq_len * self.dim)
+        x - self.linear(x)
+        return models.Model(input, x, name='Discriminator')
+        # return models.Model(inputs, x, name='Discriminator')

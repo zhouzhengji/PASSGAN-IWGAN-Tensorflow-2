@@ -35,13 +35,10 @@ class WGANGP:
         self.vocab_size = FLAGS.vocab_size
         self.grad_penalty_weight = FLAGS.g_penalty
         self.total_passwords = dataset_info.splits.total_num_examples
-        self.g_opt = ops.AdamOptWrapper(learning_rate=FLAGS.g_lr)
-        self.d_opt = ops.AdamOptWrapper(learning_rate=FLAGS.d_lr)
-        self.G = ops.BuildGenerator()
-        self.D = ops.BuildDiscriminator()
-
-        self.G.summary()
-        self.D.summary()
+        self.g_opt = tf.keras.optimizers.Adam(learning_rate=FLAGS.g_lr)
+        self.d_opt = tf.keras.optimizers.Adam(learning_rate=FLAGS.d_lr)
+        self.G = ops.BuildGenerator(layer_dim=self.layer_dim, seq_len=self.seq_len, vocab_size=self.vocab_size)
+        self.D = ops.BuildDiscriminator(layer_dim=self.layer_dim, seq_len=self.seq_len, vocab_size=self.vocab_size)
 
     def train(self, dataset):
         z = tf.constant(random.normal((FLAGS.n_samples, 2, self.z_dim)))
@@ -76,9 +73,10 @@ class WGANGP:
 
     @tf.function
     def train_g(self):
-        z = random.normal((self.batch_size, 1, self.z_dim))
+
+        noise = random.normal(self.batch_size, 128)
         with tf.GradientTape() as t:
-            x_fake = self.G(z, training=True)
+            x_fake = self.G(noise, training=True)
             fake_logits = self.D(x_fake, training=True)
             loss = ops.g_loss_fn(fake_logits)
         grad = t.gradient(loss, self.G.trainable_variables)
@@ -87,6 +85,7 @@ class WGANGP:
 
     @tf.function
     def train_d(self, x_real):
+
         with tf.GradientTape() as t:
             z = random.normal((self.batch_size, self.z_dim, 128))  # HERE
             x_fake = self.G(z, training=True)
