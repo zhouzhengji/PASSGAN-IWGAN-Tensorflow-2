@@ -10,7 +10,7 @@ from absl import flags
 from tensorflow import keras
 from tensorflow.python.ops import control_flow_util
 
-import models
+from models import WGANGP, DatasetPipeline
 
 keras.backend.clear_session()
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -40,10 +40,10 @@ flags.mark_flag_as_required('dataset')
 def main(argv):
     del argv
 
-    pipeline = models.DatasetPipeline()
+    pipeline = DatasetPipeline()
     dataset = pipeline.load_dataset()
 
-    wgangp = models.WGANGP(dataset_info=pipeline.dataset_info)
+    wgangp = WGANGP(dataset_info=pipeline.dataset_info)
     wgangp.train(dataset=dataset)
 
 

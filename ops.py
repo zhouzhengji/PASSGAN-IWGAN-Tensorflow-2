@@ -8,6 +8,7 @@ from keras_applications.densenet import models
 from tensorflow import optimizers
 from tensorflow import reduce_mean
 from tensorflow.python.keras import layers
+from keras.models import Sequential
 import tensorflow as tf
 from tensorflow_core.python.keras.layers import noise
 
@@ -54,18 +55,6 @@ class Conv1D(layers.Layer):
 
     def call(self, inputs, **kwargs):
         return self.conv_op(inputs)
-
-
-class UpConv1D(layers.Layer):
-    def __init__(self, filters, kernel_size=4, strides=2, padding='same'):
-        super(UpConv1D, self).__init__()
-        self.up_conv_op = utils.Conv1DTranspose(filters=filters,
-                                                kernel_size=kernel_size,
-                                                strides=strides,
-                                                padding=padding)
-
-    # def call(self, inputs, **kwargs):
-    #     return self.up_conv_op(inputs)
 
 
 class BatchNorm(layers.Layer):
@@ -120,14 +109,18 @@ def g_loss_fn(f_logit):
     return f_loss
 
 
-class ResBlock():
-    def __init__(self, dim):
+def make_noise(shape):
+    return tf.random.normal(shape)
+
+
+class ResBlock(layers.Layer):
+    def __init__(self, dim, name):
         super(ResBlock, self).__init__()
         self.res_block = tf.keras.Sequential(
-            tf.nn.relu(True), #unexpected data type <string>
-            tf.keras.layers.Conv1D(dim, dim, 5, padding=2),
-            tf.nn.relu(True),
-            tf.keras.layers.Conv1D(dim, dim, 5, padding=2),
+            tf.keras.layers.ReLU(True),
+            tf.keras.layers.Conv1D(name + '1', dim, dim),
+            # tf.keras.layers.ReLU(True),
+            # tf.keras.layers.Conv1D(name + '2', dim, dim),
         )
 
     def forward(self, input):
@@ -135,24 +128,23 @@ class ResBlock():
         return input + (0.3 * output)
 
 
-class BuildGenerator(layers.Layer):
+class build_generator(layers.Layer):
     def __init__(self, layer_dim, seq_len, vocab_size):
-        super(BuildGenerator, self).__init__()
+        super(build_generator, self).__init__()
         dim = layer_dim
         self.dim = layer_dim
         self.seq_len = seq_len
-        vocab_size = vocab_size
 
-        self.fc1 = tf.keras.activations.linear(dim * seq_len)
+        self.fc1 = tf.keras.layers.Dense(128, activation='linear')
         self.block = tf.keras.Sequential(
-            ResBlock(dim),
-            ResBlock(dim),
-            ResBlock(dim),
-            ResBlock(dim),
-            ResBlock(dim),
+            ResBlock(dim, 'Generator1'),
+            ResBlock(dim, 'Generator2'),
+            # ResBlock(dim, 'Generator3'),
+            # ResBlock(dim, 'Generator4'),
+            # ResBlock(dim, 'Generator5'),
         )
         self.conv1 = tf.keras.layers.Conv1D(vocab_size, dim, 1)
-        self.softmax = tf.keras.activations.softmax()
+        self.softmax = tf.keras.layers.Softmax()
 
     def forward(self, noise):
         batch_size = noise.size(0)
@@ -167,35 +159,35 @@ class BuildGenerator(layers.Layer):
         output = output.view(batch_size * self.seq_len, -1)
         output = self.softmax(output)
         # (BATCH_SIZE, SEQ_LEN, len(charmap))
-        return models.Model(output.view(shape), name='Generator')
+        return output.view(shape)
 
     # return models.Model(inputs, x, name='Generator')
 
 
-class BuildDiscriminator(layers.Layer):
+class build_discriminator(layers.Layer):
     def __init__(self, layer_dim, seq_len, vocab_size):
-        super(BuildDiscriminator, self).__init__()
+        super(build_discriminator, self).__init__()
         dim = layer_dim
         self.dim = layer_dim
         self.seq_len = seq_len
         vocab_size = vocab_size
 
-        self.fc1 = tf.keras.activations.linear(128, dim * seq_len)
+        self.fc1 = tf.keras.layers.Dense(128, activation='linear')
         self.block = tf.keras.Sequential(
-            ResBlock(dim),
-            ResBlock(dim),
-            ResBlock(dim),
-            ResBlock(dim),
-            ResBlock(dim),
+            ResBlock(dim, 'Discriminator1'),
+            ResBlock(dim, 'Discriminator2'),
+            # ResBlock(dim, 'Discriminator3'),
+            # ResBlock(dim, 'Discriminator4'),
+            # ResBlock(dim, 'Discriminator5'),
         )
         self.conv1d = tf.keras.layers.Conv1D(vocab_size, dim, 1)
-        self.linear = tf.keras.activations.linear(seq_len * dim, 1)
+        self.linear = tf.keras.layers.Dense(seq_len * dim, activation='linear')
 
     def forward(self, input):
-        x = input.transpose(1, 2)
-        x = self.conv1d(x)
-        x = self.block(x)
-        x = x.view(-1, self.seq_len * self.dim)
-        x - self.linear(x)
-        return models.Model(input, x, name='Discriminator')
-        # return models.Model(inputs, x, name='Discriminator')
+        output = input.transpose(1, 2)
+        output = self.conv1d(output)
+        output = self.block(output)
+        output = output.view(-1, self.seq_len * self.dim)
+        output - self.linear(output)
+        return output
+#

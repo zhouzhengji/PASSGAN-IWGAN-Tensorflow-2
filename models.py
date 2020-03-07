@@ -11,14 +11,12 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from absl import flags
 from tensorflow import random
-from tensorflow.python.keras import layers
-from tensorflow.python.keras import metrics
-from tensorflow.python.keras import models
 
-import ops
-from utils import img_merge
-from utils import pbar
-from utils import save_image_grid
+from tensorflow.python.keras import metrics
+
+
+from ops import build_discriminator, build_generator, d_loss_fn, g_loss_fn
+from utils import password_merge, pbar, save_password_grid
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 FLAGS = flags.FLAGS
@@ -35,13 +33,13 @@ class WGANGP:
         self.vocab_size = FLAGS.vocab_size
         self.grad_penalty_weight = FLAGS.g_penalty
         self.total_passwords = dataset_info.splits.total_num_examples
-        self.g_opt = tf.keras.optimizers.Adam(learning_rate=FLAGS.g_lr)
-        self.d_opt = tf.keras.optimizers.Adam(learning_rate=FLAGS.d_lr)
-        self.G = ops.BuildGenerator(layer_dim=self.layer_dim, seq_len=self.seq_len, vocab_size=self.vocab_size)
-        self.D = ops.BuildDiscriminator(layer_dim=self.layer_dim, seq_len=self.seq_len, vocab_size=self.vocab_size)
+        self.G = build_generator(layer_dim=self.layer_dim, seq_len=self.seq_len, vocab_size=self.vocab_size)
+        self.D = build_discriminator(layer_dim=self.layer_dim, seq_len=self.seq_len, vocab_size=self.vocab_size)
+        self.g_opt = tf.keras.optimizers.Adam(learning_rate=FLAGS.g_lr, beta_1=(0.5, 0.9))
+        self.d_opt = tf.keras.optimizers.Adam(learning_rate=FLAGS.d_lr, beta_1=(0.5, 0.9))
 
     def train(self, dataset):
-        z = tf.constant(random.normal((FLAGS.n_samples, 2, self.z_dim)))
+        z = tf.Variable(random.normal((FLAGS.n_samples, 2, self.z_dim)))
         g_train_loss = metrics.Mean()
         d_train_loss = metrics.Mean()
 
@@ -68,8 +66,8 @@ class WGANGP:
             del bar
 
             samples = self.generate_samples(z)
-            image_grid = img_merge(samples, n_rows=8).squeeze()
-            save_image_grid(image_grid, epoch + 1)
+            password_grid = password_merge(samples, n_rows=8).squeeze()
+            save_password_grid(password_grid, epoch + 1)
 
     @tf.function
     def train_g(self):
@@ -78,7 +76,7 @@ class WGANGP:
         with tf.GradientTape() as t:
             x_fake = self.G(noise, training=True)
             fake_logits = self.D(x_fake, training=True)
-            loss = ops.g_loss_fn(fake_logits)
+            loss = g_loss_fn(fake_logits)
         grad = t.gradient(loss, self.G.trainable_variables)
         self.g_opt.apply_gradients(zip(grad, self.G.trainable_variables))
         return loss
@@ -91,7 +89,7 @@ class WGANGP:
             x_fake = self.G(z, training=True)
             fake_logits = self.D(x_fake, training=True)
             real_logits = self.D(x_real, training=True)
-            cost = ops.d_loss_fn(fake_logits, real_logits)
+            cost = d_loss_fn(fake_logits, real_logits)
             gp = self.gradient_penalty(partial(self.D, training=True), x_real, x_fake)
             cost += self.grad_penalty_weight * gp
         grad = t.gradient(cost, self.D.trainable_variables)
@@ -114,32 +112,6 @@ class WGANGP:
     def generate_samples(self, z):
         # Generates samples using random values from a Gaussian distribution.
         return self.G(z, training=False)
-
-        # while mult > 1:
-        #     x = ops.UpConv1D(dim * (mult // 2))(x)
-        #     x = ops.BatchNorm()(x)
-        #     x = layers.ReLU()(x)
-        #
-        #     mult //= 2
-        #
-        # x = ops.UpConv1D(3)(x)
-        # x = layers.Activation('tanh')(x)
-        # return models.Model(inputs, x, name='Generator')
-
-        # x = inputs = layers.Input((dim, dim))
-        # x = ops.Conv1D(dim)(x)
-        # x = ops.LeakyRelu()(x)
-        #
-        # while i > 4:
-        #     x = ops.Conv1D(dim * (2 * mult))(x)
-        #     x = ops.LayerNorm(axis=[1, 2])(x)
-        #     x = ops.LeakyRelu()(x)
-        #
-        #     i //= 2
-        #     mult *= 2
-        #
-        # x = ops.Conv1D(1, 4, 1, 'valid')(x)
-        # return models.Model(inputs, x, name='Discriminator')
 
 
 class DatasetPipeline:
