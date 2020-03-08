@@ -11,9 +11,9 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from absl import flags
 from tensorflow import random
+import numpy as np
 
 from tensorflow.python.keras import metrics
-
 
 from ops import build_discriminator, build_generator, d_loss_fn, g_loss_fn
 from utils import password_merge, pbar, save_password_grid
@@ -46,9 +46,13 @@ class WGANGP:
         for epoch in range(self.epochs):
             bar = pbar(self.total_passwords, self.batch_size, epoch, self.epochs)
             for batch in dataset:
-                for _ in range(self.n_critic):
-                    self.train_d(batch)
-                    d_loss = self.train_d(batch)
+                # tf.keras.backend.flatten(batch)
+                for _ in range(self.n_critic):  ##Tensor errors here, expects single tensor when is a list
+                    text = batch['password']
+                    text = tf.one_hot(text, self.vocab_size)
+                    real = tf.Variable(text)
+                    self.train_d(real)
+                    d_loss = self.train_d(real)
                     d_train_loss(d_loss)
 
                 g_loss = self.train_g()
@@ -69,44 +73,88 @@ class WGANGP:
             password_grid = password_merge(samples, n_rows=8).squeeze()
             save_password_grid(password_grid, epoch + 1)
 
-    @tf.function
+    #@tf.function
     def train_g(self):
 
-        noise = random.normal(self.batch_size, 128)
-        with tf.GradientTape() as t:
-            x_fake = self.G(noise, training=True)
-            fake_logits = self.D(x_fake, training=True)
-            loss = g_loss_fn(fake_logits)
-        grad = t.gradient(loss, self.G.trainable_variables)
-        self.g_opt.apply_gradients(zip(grad, self.G.trainable_variables))
-        return loss
+        z = random.normal((self.batch_size, 128))
+        z = tf.Variable(z)
+        x_fake = self.G(z)
+        g = self.D(x_fake)
+        g = tf.math.reduce_mean(g)
+        g_loss = -g
 
-    @tf.function
-    def train_d(self, x_real):
+        # with tf.GradientTape() as t:
+        #     x_fake = self.G(z, training=True)
+        #     fake_logits = self.D(x_fake, training=True)
+        #     g_loss = g_loss_fn(fake_logits)
+        # grad = t.gradient(g_loss, self.G.trainable_variables)
+        # self.g_opt.apply_gradients(zip(grad, self.G.trainable_variables))
+        return g_loss
 
-        with tf.GradientTape() as t:
-            z = random.normal((self.batch_size, self.z_dim, 128))  # HERE
-            x_fake = self.G(z, training=True)
-            fake_logits = self.D(x_fake, training=True)
-            real_logits = self.D(x_real, training=True)
-            cost = d_loss_fn(fake_logits, real_logits)
-            gp = self.gradient_penalty(partial(self.D, training=True), x_real, x_fake)
-            cost += self.grad_penalty_weight * gp
-        grad = t.gradient(cost, self.D.trainable_variables)
-        self.d_opt.apply_gradients(zip(grad, self.D.trainable_variables))
-        return cost
+    #@tf.function This creates a variable on non-first, which tf.function refuses to do
+    def train_d(self, real):
+        #with tf.GradientTape() as t:
+        z = random.normal((self.batch_size, 128))
+        z = tf.Variable(z)
+        one = tf.stack([1])
+        mone = one * -1
+        x_fake = self.G(z)
+        x_fake = tf.Variable(x_fake)
+        x_real = self.D(real)
+        x_real = tf.math.reduce_mean(x_real)
+        # x_real = tf.reverse(mone)
+
+        fake_logits = self.D(x_fake, training=True)
+        real_logits = self.D(x_real, reuse=True, training=True)
+        gp = self.gradient_penalty(self.D, real, x_fake)
+        d_loss = d_loss_fn(fake_logits, real_logits) + gp
+
+            # gp = self.gradient_penalty(partial(self.D, training=True), x_real, x_fake)
+            #d_loss += self.grad_penalty_weight * gp
+        wasserstein = x_real - x_fake
+        #d_loss = self.d_opt.apply_gradients(d_loss)
+        # grad = t.gradient(d_loss, self.D.trainable_variables)
+        #self.d_opt.apply_gradients(zip(grad, self.D.trainable_variables))
+        return d_loss
+
+        # with tf.GradientTape() as t:
+        #     z = tf.Variable(random.normal((self.batch_size, self.z_dim, 128)))  # HERE
+        #     x_fake = self.G(z, training=True)
+        #     fake_logits = self.D(x_fake, training=True)
+        #     real_logits = self.D(x_real, training=True)
+        #     cost = d_loss_fn(fake_logits, real_logits)
+        #     gp = self.gradient_penalty(partial(self.D, training=True), x_real, x_fake)
+        #     cost += self.grad_penalty_weight * gp
+        # grad = t.gradient(cost, self.D.trainable_variables)
+        # self.d_opt.apply_gradients(zip(grad, self.D.trainable_variables))
+        # return cost
 
     def gradient_penalty(self, f, real, fake):
-        alpha = random.uniform([self.batch_size, 1], 0., 1.)
-        diff = fake - real
-        inter = real + (alpha * diff)
+        alpha = tf.random.normal([self.batch_size, 1, 1])
+        tf.expand_dims(alpha, 0)
+        interpolates = alpha * real + ((1 - alpha))
+        interpolates = tf.Variable(interpolates)
+        d_interpolates = self.D(interpolates)
+        #d_interpolates = tf.cast(d_interpolates, dtype=tf.int32)
+        #ones = tf.ones(d_interpolates)
         with tf.GradientTape() as t:
-            t.watch(inter)
-            pred = f(inter)
-        grad = t.gradient(pred, [inter])[0]
-        slopes = tf.sqrt(tf.reduce_sum(tf.square(grad), axis=[1, 2]))
-        gp = tf.reduce_mean((slopes - 1.) ** 2)
-        return gp
+            t.watch(interpolates)
+            pred = d_interpolates
+            gradients = t.gradient(pred, [interpolates])[0]
+            slopes = tf.sqrt(tf.reduce_sum(tf.square(gradients), axis=[1, 2]))
+            gp = tf.reduce_mean((slopes - 1.) ** 2) #((gradients.norm(2, dim=1) - 1) ** 2).mean() * 10
+            return gp
+
+        # alpha = random.uniform([self.batch_size, 1], 0., 1.)
+        # diff = fake - real
+        # inter = real + (alpha * diff)
+        # with tf.GradientTape() as t:
+        #     t.watch(inter)
+        #     pred = f(inter)
+        # grad = t.gradient(pred, [inter])[0]
+        # slopes = tf.sqrt(tf.reduce_sum(tf.square(grad), axis=[1, 2]))
+        # gp = tf.reduce_mean((slopes - 1.) ** 2)
+        # return gp
 
     @tf.function
     def generate_samples(self, z):
@@ -144,7 +192,7 @@ class DatasetPipeline:
         ds = self.dataset_cache(ds)
         ds = ds.shuffle(50000, reshuffle_each_iteration=True)
         ds = ds.apply(tf.data.experimental.unbatch())
-        ds = ds.batch(self.batch_size, drop_remainder=True).prefetch(AUTOTUNE)
+        ds = ds.batch(self.batch_size, drop_remainder=True)  # .prefetch(AUTOTUNE)
         return ds
 
     # def load_dataset(self, dl_manager):

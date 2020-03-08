@@ -44,7 +44,6 @@ def password_merge(passwords, n_rows=None, n_cols=None, padding=0, pad_value=0):
 
 
 def save_password_grid(password_grid, epoch):
-    """Saves image grid to user output dir."""
     file_name = FLAGS.dataset + f'_{epoch}.txt'
     output_dir = os.path.join(FLAGS.output_dir, file_name)
     tf.io.write_file(output_dir, tf.string.encode_utf8(tf.cast(password_grid, tf.uint8)))

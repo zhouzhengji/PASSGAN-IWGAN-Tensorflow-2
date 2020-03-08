@@ -10,6 +10,7 @@ from tensorflow import reduce_mean
 from tensorflow.python.keras import layers
 from keras.models import Sequential
 import tensorflow as tf
+import numpy as np
 from tensorflow_core.python.keras.layers import noise
 
 import utils
@@ -99,13 +100,13 @@ class AdamOptWrapper(optimizers.Adam):
 
 
 def d_loss_fn(f_logit, r_logit):
-    f_loss = reduce_mean(f_logit)
-    r_loss = reduce_mean(r_logit)
+    f_loss = tf.math.reduce_mean(f_logit)
+    r_loss = tf.math.reduce_mean(r_logit)
     return f_loss - r_loss
 
 
 def g_loss_fn(f_logit):
-    f_loss = -reduce_mean(f_logit)
+    f_loss = -tf.math.reduce_mean(f_logit)
     return f_loss
 
 
