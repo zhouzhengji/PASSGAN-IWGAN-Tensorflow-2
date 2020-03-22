@@ -44,9 +44,14 @@ def password_merge(passwords, n_rows=None, n_cols=None, padding=0, pad_value=0):
 
 
 def save_password_grid(password_grid, epoch):
+
     file_name = FLAGS.dataset + f'_{epoch}.txt'
     output_dir = os.path.join(FLAGS.output_dir, file_name)
-    tf.io.write_file(output_dir, tf.string.encode_utf8(tf.cast(password_grid, tf.uint8)))
+    x = tf.constant(password_grid, dtype=tf.int64, shape=None)
+    #x = tf.reshape(tf.squeeze(x), [0])
+    x = tf.io.serialize_tensor(x)
+    #print(x)
+    tf.io.write_file(file_name, x)
 
 
 def get_terminal_width():
@@ -57,7 +62,7 @@ def get_terminal_width():
 
 
 def pbar(total_passwords, batch_size, epoch, epochs):
-    bar = tqdm(total=(total_passwords // batch_size) * batch_size,
+    bar = tqdm(total=total_passwords * epochs,
                ncols=int(get_terminal_width() * .9),
                desc=tqdm.write(f'Epoch {epoch + 1}/{epochs}'),
                postfix={

@@ -2,7 +2,7 @@ import random
 import csv
 import numpy as np
 
-random.seed(1337)
+random.seed(5421)
 
 with open('../data/rockyou1.tsv', 'r', newline='') as f:
     print('imported file')

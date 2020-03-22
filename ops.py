@@ -3,100 +3,8 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import self as self
-from keras_applications.densenet import models
-from tensorflow import optimizers
-from tensorflow import reduce_mean
-from tensorflow.python.keras import layers
-from keras.models import Sequential
 import tensorflow as tf
-import numpy as np
-from tensorflow_core.python.keras.layers import noise
-
-import utils
-
-
-class Conv2D(layers.Layer):
-    def __init__(self, filters, kernel_size=4, strides=2, padding='same'):
-        super(Conv2D, self).__init__()
-        self.conv_op = layers.Conv2D(filters=filters,
-                                     kernel_size=kernel_size,
-                                     strides=strides,
-                                     padding=padding,
-                                     use_bias=False,
-                                     kernel_initializer='he_normal')
-
-    def call(self, inputs, **kwargs):
-        return self.conv_op(inputs)
-
-
-class UpConv2D(layers.Layer):
-    def __init__(self, filters, kernel_size=4, strides=2, padding='same'):
-        super(UpConv2D, self).__init__()
-        self.up_conv_op = layers.Conv2DTranspose(filters=filters,
-                                                 kernel_size=kernel_size,
-                                                 strides=strides,
-                                                 padding=padding,
-                                                 use_bias=False,
-                                                 kernel_initializer='he_normal')
-
-    def call(self, inputs, **kwargs):
-        return self.up_conv_op(inputs)
-
-
-class Conv1D(layers.Layer):
-    def __init__(self, filters, kernel_size=4, strides=2, padding='same'):
-        super(Conv1D, self).__init__()
-        self.conv_op = layers.Conv1D(filters=filters,
-                                     kernel_size=kernel_size,
-                                     strides=strides,
-                                     padding=padding,
-                                     use_bias=False,
-                                     kernel_initializer='he_normal')
-
-    def call(self, inputs, **kwargs):
-        return self.conv_op(inputs)
-
-
-class BatchNorm(layers.Layer):
-    def __init__(self, epsilon=1e-4, axis=-1, momentum=0.99):
-        super(BatchNorm, self).__init__()
-        self.batch_norm = layers.BatchNormalization(epsilon=epsilon,
-                                                    axis=axis,
-                                                    momentum=momentum)
-
-    def call(self, inputs, **kwargs):
-        return self.batch_norm(inputs)
-
-
-class LayerNorm(layers.Layer):
-    def __init__(self, epsilon=1e-4, axis=-1):
-        super(LayerNorm, self).__init__()
-        self.layer_norm = layers.LayerNormalization(epsilon=epsilon, axis=axis)
-
-    def call(self, inputs, **kwargs):
-        return self.layer_norm(inputs)
-
-
-class LeakyRelu(layers.Layer):
-    def __init__(self, alpha=0.2):
-        super(LeakyRelu, self).__init__()
-        self.leaky_relu = layers.LeakyReLU(alpha=alpha)
-
-    def call(self, inputs, **kwargs):
-        return self.leaky_relu(inputs)
-
-
-class AdamOptWrapper(optimizers.Adam):
-    def __init__(self,
-                 learning_rate=1e-4,
-                 beta_1=0.,
-                 beta_2=0.9,
-                 epsilon=1e-4,
-                 amsgrad=False,
-                 **kwargs):
-        super(AdamOptWrapper, self).__init__(learning_rate, beta_1, beta_2, epsilon,
-                                             amsgrad, **kwargs)
+from tensorflow import reduce_mean
 
 
 def d_loss_fn(f_logit, r_logit):
@@ -105,67 +13,60 @@ def d_loss_fn(f_logit, r_logit):
     return f_loss - r_loss
 
 
-def g_loss_fn(f_logit):
-    f_loss = -tf.math.reduce_mean(f_logit)
+def wasserstein_loss(f_logit):
+    f_loss = -reduce_mean(f_logit)
     return f_loss
 
 
-def make_noise(shape):
-    return tf.random.normal(shape)
-
-
-class ResBlock(layers.Layer):
-    def __init__(self, dim, name):
+class ResBlock(tf.keras.Model):
+    def __init__(self, dim):
         super(ResBlock, self).__init__()
-        self.res_block = tf.keras.Sequential(
+        self.res_block = tf.keras.Sequential([
+            # tf.keras.layers.Dense(128, activation='linear', input_shape=(784,1)),
             tf.keras.layers.ReLU(True),
-            tf.keras.layers.Conv1D(name + '1', dim, dim),
-            # tf.keras.layers.ReLU(True),
-            # tf.keras.layers.Conv1D(name + '2', dim, dim),
-        )
+            tf.keras.layers.Conv1D(dim, dim, 6, padding='same'),  # (dim, dim, 5, padding='same')
+            tf.keras.layers.ReLU(True),
+            tf.keras.layers.Conv1D(dim, dim, 6, padding='same'),
+        ])
 
-    def forward(self, input):
+    def call(self, input, **kwargs):
         output = self.res_block(input)
         return input + (0.3 * output)
 
 
-class build_generator(layers.Layer):
+class build_generator(tf.keras.Model):
     def __init__(self, layer_dim, seq_len, vocab_size):
         super(build_generator, self).__init__()
         dim = layer_dim
         self.dim = layer_dim
         self.seq_len = seq_len
 
-        self.fc1 = tf.keras.layers.Dense(128, activation='linear')
-        self.block = tf.keras.Sequential(
-            ResBlock(dim, 'Generator1'),
-            ResBlock(dim, 'Generator2'),
-            # ResBlock(dim, 'Generator3'),
-            # ResBlock(dim, 'Generator4'),
-            # ResBlock(dim, 'Generator5'),
-        )
-        self.conv1 = tf.keras.layers.Conv1D(vocab_size, dim, 1)
+        self.fc1 = tf.keras.layers.Dense(128, activation='linear', input_shape=(dim * seq_len,))
+        self.block = tf.keras.Sequential([
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+        ])
+        self.conv1 = tf.keras.layers.Conv1D(1, 1, 1)  # (dim, vocab_size, 1)
         self.softmax = tf.keras.layers.Softmax()
 
-    def forward(self, noise):
-        batch_size = noise.size(0)
+    def call(self, noise, **kwargs):
+        batch_size = tf.size(noise)  # tf.keras.layers.GaussianNoise(0, input_shape=(self.dim, self.seq_len))
         output = self.fc1(noise)
-        # (BATCH_SIZE, DIM, SEQ_LEN)
-        output = output.view(-1, self.dim, self.seq_len)
+        output = tf.reshape(output, (-1, 32, 128))  # (-1, 32, 128))   (-1, self.dim, self.seq_len)
         output = self.block(output)
         output = self.conv1(output)
-        output = output.transpose(1, 2)
-        shape = output.size()
-        output = output.contiguous()
-        output = output.view(batch_size * self.seq_len, -1)
+        output = tf.transpose(output, [0, 2, 1])
+        shape = tf.size(output)
+        # output = tf.contiguous()
+        # output = tf.reshape(output, (batch_size, 2, -1))
         output = self.softmax(output)
-        # (BATCH_SIZE, SEQ_LEN, len(charmap))
-        return output.view(shape)
-
-    # return models.Model(inputs, x, name='Generator')
+        return output  # tf.reshape(output, shape)
 
 
-class build_discriminator(layers.Layer):
+class build_discriminator(tf.keras.Model):
     def __init__(self, layer_dim, seq_len, vocab_size):
         super(build_discriminator, self).__init__()
         dim = layer_dim
@@ -173,22 +74,21 @@ class build_discriminator(layers.Layer):
         self.seq_len = seq_len
         vocab_size = vocab_size
 
-        self.fc1 = tf.keras.layers.Dense(128, activation='linear')
-        self.block = tf.keras.Sequential(
-            ResBlock(dim, 'Discriminator1'),
-            ResBlock(dim, 'Discriminator2'),
-            # ResBlock(dim, 'Discriminator3'),
-            # ResBlock(dim, 'Discriminator4'),
-            # ResBlock(dim, 'Discriminator5'),
-        )
-        self.conv1d = tf.keras.layers.Conv1D(vocab_size, dim, 1)
+        self.block = tf.keras.Sequential([
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+        ])
+        self.conv1d = tf.keras.layers.Conv1D(dim, 1, 1)
         self.linear = tf.keras.layers.Dense(seq_len * dim, activation='linear')
 
-    def forward(self, input):
-        output = input.transpose(1, 2)
+    def call(self, input, **kwargs):
+        output = tf.transpose(input)
         output = self.conv1d(output)
         output = self.block(output)
-        output = output.view(-1, self.seq_len * self.dim)
-        output - self.linear(output)
+        output = tf.reshape(output, (-1, 32, 128))
+        output = self.linear(output)
         return output
 #

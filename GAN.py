@@ -17,7 +17,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 control_flow_util.ENABLE_CONTROL_FLOW_V2 = True
 FLAGS = flags.FLAGS
 
-flags.DEFINE_integer('epochs', 50, 'Epochs to train.')
+flags.DEFINE_integer('epochs', 1, 'Epochs to train.')
 flags.DEFINE_integer('batch_size', 64, 'Size of batch.')
 flags.DEFINE_integer('layer_dim', 128, 'The hidden layer dimensionality for the generator.')
 flags.DEFINE_integer('vocab_size', 257, 'dataset vocab size')
