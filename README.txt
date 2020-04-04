@@ -1,1 +1,1 @@
-python GAN.py -dataset rock_you -batch_size 64 -layer_dim 128
+python GAN.py -dataset rock_you -batch_size 64 -layer_dim 128 && tensorboard --log_dir logs/gradient_tape
