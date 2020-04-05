@@ -23,9 +23,9 @@ class ResBlock(tf.keras.Model):
         super(ResBlock, self).__init__()
         self.res_block = tf.keras.Sequential([
             tf.keras.layers.ReLU(True),
-            tf.keras.layers.Conv1D(dim, dim, 6, padding='same'),  # (dim, dim, 5, padding='same')
+            tf.keras.layers.Conv1D(dim, dim, 5, padding='same'),  # (dim, dim, 5, padding='same')
             tf.keras.layers.ReLU(True),
-            tf.keras.layers.Conv1D(dim, dim, 6, padding='same'),
+            tf.keras.layers.Conv1D(dim, dim, 5, padding='same'),
         ])
 
     def call(self, input, **kwargs):
@@ -48,15 +48,18 @@ class build_generator(tf.keras.Model):
             ResBlock(dim),
             ResBlock(dim),
         ])
-        self.conv1 = tf.keras.layers.Conv1D(1, 1, 1)
+        self.conv1 = tf.keras.layers.Conv1D(dim, 32, 1)
+        self.softmax = tf.keras.layers.Softmax()
 
     def call(self, noise, **kwargs):
         output = self.fc1(noise)
-        output = tf.reshape(output, (-1, 32, 128))
+        output = tf.reshape(output, (-1, 2, 128))
         output = self.block(output)
+        output = tf.reshape(output, [1, 32, 8])
         output = self.conv1(output)
         output = tf.transpose(output, [0, 2, 1])
-        return output
+        output = self.softmax(output)
+        return tf.reshape(output, [4, 1, 32])
 
 
 class build_discriminator(tf.keras.Model):
@@ -73,13 +76,14 @@ class build_discriminator(tf.keras.Model):
             ResBlock(dim),
             ResBlock(dim),
         ])
-        self.conv1d = tf.keras.layers.Conv1D(dim, seq_len, 1)
+        self.conv1d = tf.keras.layers.Conv1D(dim, 32, 1)
         self.linear = tf.keras.layers.Dense(seq_len * dim, activation='linear')
 
     def call(self, input, **kwargs):
         output = tf.transpose(input, [0, 2, 1])
         output = self.conv1d(output)
         output = self.block(output)
+        output = tf.reshape(output, (-1, 64, 4))
         output = self.linear(output)
         return output
 #

@@ -20,7 +20,6 @@ from utils import pbar
 
 tf.config.experimental_run_functions_eagerly(True)
 
-AUTOTUNE = tf.data.experimental.AUTOTUNE
 FLAGS = flags.FLAGS
 
 
@@ -56,13 +55,7 @@ class WGANGP:
                 for _ in tf.range(
                         self.n_critic):
                     self.text = batch['password']
-                    self.text = tf.dtypes.cast(self.text, tf.float32)
-                    real = tf.reshape(tf.Variable(self.text), [2, 1, 32])
-                    # samples = real
-                    # samples = tf.cast(samples, dtype=tf.int32)
-                    # samples = np.array([samples]).flatten().tolist()
-                    # decoded_passwords = self.encoder.decode(samples)
-                    # print(decoded_passwords)
+                    real = tf.reshape(tf.dtypes.cast(self.text, tf.float32), [2, 1, 32])
                     self.train_d(real)
                     d_loss = self.train_d(real)
                     d_train_loss(d_loss)
@@ -78,13 +71,20 @@ class WGANGP:
                 bar.postfix['d_loss'] = f'{d_train_loss.result():6.3f}'
                 bar.update(self.batch_size)
 
-                if bar.n >= 20000:  # self.total_passwords * self.epochs:
-                    break
+                # if bar.n >= 64:  # self.total_passwords * self.epochs:
+                #     break
 
             self.G.summary()
             self.D.summary()
             tf.saved_model.save(self.G, './models/generator/' + self.dataset_name + current_time)
             tf.saved_model.save(self.D, './models/discriminator/' + self.dataset_name + current_time)
+
+            z = np.random.randint(258, size=(128, 128), dtype=np.int64)
+            z = tf.dtypes.cast(z, tf.float32)
+            z = tf.reshape(tf.Variable(z), [128, 128])
+            samples = self.generate_samples()
+            with open("samples.txt" + current_time, "w") as output:
+                output.write(str(samples))
 
             g_train_loss.reset_states()
             d_train_loss.reset_states()
@@ -92,21 +92,9 @@ class WGANGP:
             bar.close()
             del bar
 
-            z = np.random.randint(258, size=(128, 128), dtype=np.int64)
-            z = tf.dtypes.cast(z, tf.float32)
-            z = tf.reshape(tf.Variable(z), [128, 128])
-            samples = (self.generate_samples(z))
-            with open("samples.txt" + current_time, "w") as output:
-                output.write(str(samples))
-
-
-
     @tf.function
     def train_g(self):
-
-        z = np.random.randint(258, size=(128, 128), dtype=np.int64)
-        z = tf.dtypes.cast(z, tf.float32)
-        z = tf.reshape(tf.Variable(z), [128, 128])
+        z = random.normal([2, 1, 32])
         with tf.GradientTape() as t:
             t.watch(z)
             x_fake = self.G(z, training=True)
@@ -118,14 +106,12 @@ class WGANGP:
 
     @tf.function
     def train_d(self, real):
-        z = np.random.randint(258, size=(128, 128), dtype=np.int64)
-        z = tf.dtypes.cast(z, tf.float32)
-        z = tf.reshape(tf.Variable(z), [128, 128])
+        z = random.normal([2, 1, 32])
         with tf.GradientTape() as t:
             t.watch(z)
+            real_logits = self.D(real, training=True)
             x_fake = self.G(z, training=True)
             fake_logits = self.D(x_fake, training=True)
-            real_logits = self.D(real, reuse=True, training=True)
             cost = d_loss_fn(fake_logits, real_logits)
             gp = self.gradient_penalty(partial(self.D, training=True), real, x_fake)
             cost += self.grad_penalty_weight * gp
@@ -134,7 +120,6 @@ class WGANGP:
         return cost
 
     def gradient_penalty(self, f, real, fake):
-        # fake = tf.reshape(fake, [2, 1, 64])
         real = tf.tile(real, multiples=[2, 1, 1])
         alpha = random.uniform([2, 1], 0., 1.)
         diff = fake - real
@@ -149,9 +134,15 @@ class WGANGP:
         return gp
 
     @tf.function
-    def generate_samples(self, z):
+    def generate_samples(self):
         # Generates samples using random values from a Gaussian distribution.
-        return self.G(z, training=False)
+        z = random.normal([2, 1, 32])
+        samples = self.G(z, training=False)
+        samples = np.argmax(samples, axis=2)
+        decoded_passwords = self.encoder.decode(samples)
+        print(decoded_passwords)
+
+        return samples
 
 
 class DatasetPipeline:
@@ -176,11 +167,11 @@ class DatasetPipeline:
 
     def load_dataset(self):
         ds, self.dataset_info = tfds.load(name=self.dataset_name,
-                                          split=tfds.Split.TRAIN,
+                                          split='train[:80%]',  # tfds.Split.TRAIN,
                                           with_info=True)
 
         ds = self.dataset_cache(ds)
         ds = ds.shuffle(50000, reshuffle_each_iteration=True)
         ds = ds.apply(tf.data.experimental.unbatch())
-        ds = ds.batch(self.batch_size, drop_remainder=True)
+        ds = ds.batch(self.batch_size, drop_remainder=False)
         return ds
