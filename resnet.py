@@ -16,20 +16,19 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with PFYP.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import tensorflow as tf
 
 
-def d_loss_fn(f_logit, r_logit):
-    f_loss = tf.reduce_mean(f_logit)
-    r_loss = tf.reduce_mean(r_logit)
-    return f_loss - r_loss
+class ResBlock(tf.keras.Model):
+    def __init__(self, dim):
+        super(ResBlock, self).__init__()
+        self.res_block = tf.keras.Sequential([
+            tf.keras.layers.ReLU(True),
+            tf.keras.layers.Conv1D(dim, dim, 5, padding='same'),
+            tf.keras.layers.ReLU(True),
+            tf.keras.layers.Conv1D(dim, dim, 5, padding='same'),
+        ])
 
-
-def wasserstein_loss(f_logit):
-    f_loss = -tf.reduce_mean(f_logit)
-    return f_loss
+    def call(self, input, **kwargs):
+        output = self.res_block(input)
+        return input + (0.3 * output)

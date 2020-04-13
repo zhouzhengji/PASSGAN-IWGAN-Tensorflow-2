@@ -1,3 +1,21 @@
+#  PassGAN_Final_Year_Project - Replication of PassGAN paper using Tensorflow 2 & Keras
+#  Copyright (C) 2020 RachelaHorner
+#
+#  This file is part of PassGAN_Final_Year_Project (PFYP).
+#
+#  PFYP is free software: you can redistribute it and/or modify
+#  it under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation, either version 3 of the License, or
+#  (at your option) any later version.
+#
+#  PFYP is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU Lesser General Public License for more details.
+#
+#  You should have received a copy of the GNU Lesser General Public License
+#  along with PFYP.  If not, see <http://www.gnu.org/licenses/>.
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -10,7 +28,7 @@ from absl import flags
 from tensorflow import keras
 from tensorflow.python.ops import control_flow_util
 
-from models import WGANGP, DatasetPipeline
+from train import WGANGP, DatasetPipeline
 
 keras.backend.clear_session()
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -18,6 +36,8 @@ control_flow_util.ENABLE_CONTROL_FLOW_V2 = True
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer('epochs', 1, 'Epochs to train.')
+flags.DEFINE_integer('iterations', 199000, 'Number of iterations')
+flags.DEFINE_integer('checkpoints', 5000, 'Number of iterations per checkpoint')
 flags.DEFINE_integer('batch_size', 64, 'Size of batch.')
 flags.DEFINE_integer('layer_dim', 128, 'The hidden layer dimensionality for the generator.')
 flags.DEFINE_integer('vocab_size', 257, 'dataset vocab size')

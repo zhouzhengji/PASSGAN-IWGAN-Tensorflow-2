@@ -16,20 +16,32 @@
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with PFYP.  If not, see <http://www.gnu.org/licenses/>.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import tensorflow as tf
 
-
-def d_loss_fn(f_logit, r_logit):
-    f_loss = tf.reduce_mean(f_logit)
-    r_loss = tf.reduce_mean(r_logit)
-    return f_loss - r_loss
+from resnet import ResBlock
 
 
-def wasserstein_loss(f_logit):
-    f_loss = -tf.reduce_mean(f_logit)
-    return f_loss
+class BuildDiscriminator(tf.keras.Model):
+    def __init__(self, layer_dim, seq_len):
+        super(BuildDiscriminator, self).__init__()
+        dim = layer_dim
+        self.dim = layer_dim
+        self.seq_len = seq_len
+
+        self.block = tf.keras.Sequential([
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+            ResBlock(dim),
+        ])
+        self.conv1d = tf.keras.layers.Conv1D(dim, 32, 1)
+        self.linear = tf.keras.layers.Dense(seq_len * dim, activation='linear')
+
+    def call(self, input, **kwargs):
+        output = tf.transpose(input, [0, 2, 1])
+        output = self.conv1d(output)
+        output = self.block(output)
+        output = tf.reshape(output, (-1, 64, 4))
+        output = self.linear(output)
+        return output
