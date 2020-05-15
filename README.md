@@ -1,4 +1,4 @@
-![](https://imgur.com/a/dSqaOks.png)
+![](https://i.imgur.com/zKzAcus.png)
 
  PassGAN Evaluation
 =======================
