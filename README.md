@@ -28,5 +28,20 @@ Jetbrains-Pycharm or equivalent
 ```
 
 ### Installing
-
 The easiest way to get started
+
+```
+Setup environment according to the TENSORFLOW setup document included: Ubuntu required
+```
+
+```
+Pull the repository
+```
+
+```
+Import packages via Pycharm packet manager
+```
+
+```
+Run project with python GAN.py to pull dataset and begin training
+```
