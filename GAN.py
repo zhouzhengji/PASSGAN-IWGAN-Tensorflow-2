@@ -52,7 +52,7 @@ flags.DEFINE_enum(
 flags.DEFINE_boolean('preprocess', False, 'Pre-process the text data for normality.')
 flags.DEFINE_string('output_dir', '.', 'Output directory.')
 flags.DEFINE_float('g_penalty', 10.0, 'Gradient penalty weight.')
-flags.DEFINE_integer('n_critic', 5, 'Critic updates per generator update.')
+flags.DEFINE_integer('n_critic', 10, 'Critic updates per generator update.')
 flags.DEFINE_integer('n_samples', 64, 'Number of samples to generate.')
 flags.mark_flag_as_required('dataset')
 

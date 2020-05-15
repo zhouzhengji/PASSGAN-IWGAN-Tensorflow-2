@@ -35,7 +35,7 @@ class BuildDiscriminator(tf.keras.Model):
             ResBlock(dim),
             ResBlock(dim),
         ])
-        self.conv1d = tf.keras.layers.Conv1D(dim, 32, 1)
+        self.conv1d = tf.keras.layers.Conv1D(dim, 32, 1, padding='valid')
         self.linear = tf.keras.layers.Dense(seq_len * dim, activation='linear')
 
     def call(self, input, **kwargs):

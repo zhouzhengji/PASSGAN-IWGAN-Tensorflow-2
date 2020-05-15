@@ -1,7 +1,3 @@
-# Hi, this image is developed based on information scraped from the PassGAN research paper
-# Your results may vary
-#
- 
 FROM tensorflow/tensorflow:2.1.0-gpu
  
 #
@@ -17,7 +13,7 @@ COPY PassGAN/* /home/
 EXPOSE 80
 
 #
-# Shoutback End
+# Shoutback
 RUN echo 'PassGAN Research Container developed @Plymouth University'
  
 #

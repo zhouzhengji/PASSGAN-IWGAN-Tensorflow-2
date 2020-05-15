@@ -39,7 +39,7 @@ from discriminator import BuildDiscriminator
 from generator import BuildGenerator
 from utils import pbar
 
-tf.config.experimental_run_functions_eagerly(True)
+tf.config.experimental_run_functions_eagerly(False)
 FLAGS = flags.FLAGS
 
 """
@@ -122,13 +122,15 @@ class WGANGP:
                 /logs/gradient_tape/
                 """
                 with train_summary_writer.as_default():
-                    tf.summary.scalar('loss', g_train_loss.result(), step=epoch)
+                    tf.summary.scalar('cost', g_train_loss.result(), step=epoch)
                     tf.summary.scalar('accuracy', d_train_loss.result(), step=epoch)
-                    tf.keras.callbacks.TensorBoard(log_dir=train_log_dir)
 
                 bar.postfix['g_loss'] = f'{g_train_loss.result():6.3f}'
                 bar.postfix['d_loss'] = f'{d_train_loss.result():6.3f}'
                 bar.update(self.batch_size)
+
+                # if bar.n >= 64:
+                #     break
 
                 if iteration % self.checkpoints == 0 and iteration > 0:
                     generator_checkpoint = tf.train.Checkpoint(optimizer=self.g_opt, model=self.G)
@@ -136,8 +138,6 @@ class WGANGP:
 
                     discriminator_checkpoint = tf.train.Checkpoint(optimizer=self.d_opt, model=self.D)
                     discriminator_checkpoint.save(file_prefix=d_checkpoint_prefix)
-
-
 
             self.G.summary()
             self.D.summary()
@@ -154,6 +154,7 @@ class WGANGP:
             Generator weights
             """
             samples = self.generate_samples()
+            print(samples)
             with open("samples.txt" + current_time, "w") as output:
                 output.write(str(samples))
 
@@ -169,7 +170,9 @@ class WGANGP:
 
     @tf.function
     def train_g(self):
-        z = random.normal([2, 1, 32])
+        z = np.random.randint(258, size=128, dtype=np.int64)
+        z = tf.dtypes.cast(z, tf.float32)
+        z = tf.reshape(z, [2, 1, 64])
         with tf.GradientTape() as t:
             t.watch(z)
             x_fake = self.G(z, training=True)
@@ -185,7 +188,9 @@ class WGANGP:
 
     @tf.function
     def train_d(self, real):
-        z = random.normal([2, 1, 32])
+        z = np.random.randint(258, size=128, dtype=np.int64)
+        z = tf.dtypes.cast(z, tf.float32)
+        z = tf.reshape(z, [2, 1, 64])
         with tf.GradientTape() as t:
             t.watch(z)
             real_logits = self.D(real, training=True)
@@ -223,11 +228,10 @@ class WGANGP:
 
     @tf.function
     def generate_samples(self):
-        z = random.normal([2, 1, 32])
+        z = np.random.randint(258, size=(128), dtype=np.int64)
+        z = tf.dtypes.cast(z, tf.float32)
+        z = tf.reshape(z, [2, 1, 64])
         samples = self.G(z, training=False)
-        samples = np.argmax(samples, axis=2)
-        decoded_passwords = self.encoder.decode(samples)
-        print(decoded_passwords)
         return samples
 
 
@@ -254,7 +258,7 @@ class DatasetPipeline:
         self.preprocess = FLAGS.preprocess
         self.dataset_info = []
 
-    def preprocess_label(self, passwords):  # TODO: tie in preprocess tools for dataset
+    def preprocess_label(self, passwords):
         return tf.cast(passwords, tf.int64)
 
     def dataset_cache(self, dataset):

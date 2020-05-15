@@ -36,8 +36,8 @@ class BuildGenerator(tf.keras.Model):
             ResBlock(dim),
             ResBlock(dim),
         ])
-        self.conv1 = tf.keras.layers.Conv1D(dim, 32, 1)
-        self.softmax = tf.keras.layers.Softmax()
+        self.conv1 = tf.keras.layers.Conv1D(dim, 32, 1, padding='valid')
+        self.softmax = tf.keras.layers.Softmax(axis=1)
 
     def call(self, noise, **kwargs):
         output = self.fc1(noise)
