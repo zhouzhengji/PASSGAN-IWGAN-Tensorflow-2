@@ -30,6 +30,7 @@
 #
 #  You should have received a copy of the GNU Lesser General Public License
 #  along with PFYP.  If not, see <http://www.gnu.org/licenses/>.
+
 import csv
 import sys
 import pathlib
@@ -41,7 +42,7 @@ tf.keras.backend.clear_session()
 csv.field_size_limit(sys.maxsize)
 
 
-class DatasetPipeline:
+class DictionaryBuilder:
     def __init__(self):
         self.dataset_name = 'rock_you'
         self.batch_size = 64
@@ -75,7 +76,7 @@ class DatasetPipeline:
         return ds
 
 
-pipeline = DatasetPipeline()
+pipeline = DictionaryBuilder()
 dataset = pipeline.load_dataset()
 samples = pathlib.Path('../data/samples.txt')
 

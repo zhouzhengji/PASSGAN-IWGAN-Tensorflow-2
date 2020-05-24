@@ -19,6 +19,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import csv
+
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
@@ -31,37 +33,35 @@ from tensorflow.python.tools import saved_model_utils
 
 keras.backend.clear_session()
 output = []
-model_dir = 'models/generator/rock_you20200428-205637'
+offset = 95
+model_dir = 'models/generator/rock_you20200523-130754'
 log_dir = 'models/generator/'
 tag_set = 'serve'
 
-available_model = tf.saved_model.contains_saved_model('models/generator/rock_you20200428-205637')
+available_model = tf.saved_model.contains_saved_model(model_dir)
 print(available_model)
 
-model = tf.saved_model.load(
-    'models/generator/rock_you20200428-205637')
+model = tf.saved_model.load(model_dir)
 for i in range(200):
-    z = np.random.randint(258, size=(128), dtype=np.int64)
-    z = tf.dtypes.cast(z, tf.float32)
-    z = tf.reshape(tf.Variable(z), [2, 1, 64])
+    z = tf.constant(tf.random.normal([2, 1, 32], dtype=tf.dtypes.float32))
     samples = model(z, training=False)
-    raw = tf.nest.flatten(z.numpy().tolist())
-    probability = tf.nest.flatten(samples.numpy().tolist())
+    samples = np.argmax(samples, axis=2)
+    for i in range(len(samples)):
+        decoded = []
+        for j in range(len(samples[i])):
+            decoded.append([samples[i][j]])
+        decoded = list(np.asarray(decoded) + offset)
+        output.append(tuple(decoded))
 
-    intersection = [i for i, j in zip(raw, probability) if 1.0 == j]
-    output.append(intersection)
+y = [i[0] for i in output]
+charList = [chr(y[i]) for i in range(0, len(output))]
+with open('data/samples.txt', "w") as f:
+    writer = csv.writer(f, delimiter="'", lineterminator="\r\n")
+    writer.writerows(charList)
 
-output = list(filter(None, output))
-np.savetxt('data/samples.txt', output, fmt="%10s")
-
-# Decodes samples
-output = [[int(float(j)) for j in i] for i in output]
-output = str(output).replace('[', '').replace(']', '').replace(' ', '')
-output = [int(x) for x in output.split(',') if x.strip().isdigit()]
-charList = [chr(output[i]) for i in range(0, len(output))]
-np.savetxt('data/decoded_samples.txt', charList, fmt="%10s")
-print(charList)
-
+print('DISCLAIMER: The following generated characters are for research purposes only')
+stringList = ''.join(map(str, charList))
+print(stringList)
 
 # Displays interactive model flow in tensorboard
 def import_to_tensorboard(model_dir, log_dir, tag_set):

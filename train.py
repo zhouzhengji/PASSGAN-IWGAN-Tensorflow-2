@@ -32,7 +32,6 @@ import tensorflow_datasets as tfds
 from absl import flags
 from tensorflow import random
 from tensorflow.python.keras import metrics
-import numpy as np
 
 from ops import d_loss_fn, wasserstein_loss
 from discriminator import BuildDiscriminator
@@ -122,15 +121,12 @@ class WGANGP:
                 /logs/gradient_tape/
                 """
                 with train_summary_writer.as_default():
-                    tf.summary.scalar('cost', g_train_loss.result(), step=epoch)
-                    tf.summary.scalar('accuracy', d_train_loss.result(), step=epoch)
+                    tf.summary.scalar('Generator', g_train_loss.result(), step=epoch)
+                    tf.summary.scalar('Accuracy', d_train_loss.result(), step=epoch)
 
                 bar.postfix['g_loss'] = f'{g_train_loss.result():6.3f}'
                 bar.postfix['d_loss'] = f'{d_train_loss.result():6.3f}'
                 bar.update(self.batch_size)
-
-                # if bar.n >= 64:
-                #     break
 
                 if iteration % self.checkpoints == 0 and iteration > 0:
                     generator_checkpoint = tf.train.Checkpoint(optimizer=self.g_opt, model=self.G)
@@ -149,15 +145,6 @@ class WGANGP:
             tf.saved_model.save(self.G, './models/generator/' + self.dataset_name + current_time)
             tf.saved_model.save(self.D, './models/discriminator/' + self.dataset_name + current_time)
 
-            """
-            Sample generation based on current
-            Generator weights
-            """
-            samples = self.generate_samples()
-            print(samples)
-            with open("samples.txt" + current_time, "w") as output:
-                output.write(str(samples))
-
             g_train_loss.reset_states()
             d_train_loss.reset_states()
 
@@ -170,9 +157,7 @@ class WGANGP:
 
     @tf.function
     def train_g(self):
-        z = np.random.randint(258, size=128, dtype=np.int64)
-        z = tf.dtypes.cast(z, tf.float32)
-        z = tf.reshape(z, [2, 1, 64])
+        z = tf.random.normal([2, 1, 32], dtype=tf.dtypes.float32)
         with tf.GradientTape() as t:
             t.watch(z)
             x_fake = self.G(z, training=True)
@@ -188,9 +173,7 @@ class WGANGP:
 
     @tf.function
     def train_d(self, real):
-        z = np.random.randint(258, size=128, dtype=np.int64)
-        z = tf.dtypes.cast(z, tf.float32)
-        z = tf.reshape(z, [2, 1, 64])
+        z = tf.random.normal([2, 1, 32], dtype=tf.dtypes.float32)
         with tf.GradientTape() as t:
             t.watch(z)
             real_logits = self.D(real, training=True)
@@ -207,13 +190,10 @@ class WGANGP:
     Gradient Penalty 
     """
 
-    @tf.function
     def gradient_penalty(self, f, real, fake):
-        real = tf.tile(real, multiples=[2, 1, 1])
-        alpha = random.uniform([2, 1], 0., 1.)
+        alpha = random.uniform([2, 1, 32], 0., 1.)
         diff = fake - real
         inter = real + (alpha * diff)
-        inter = tf.reshape(inter, [8, 1, 32])
         with tf.GradientTape() as t:
             t.watch(inter)
             pred = f(inter)
@@ -223,14 +203,12 @@ class WGANGP:
         return gp
 
     """
-    Sample Generation using Gaussian Distribution
+    Short Sample Generation using Gaussian Distribution
     """
 
     @tf.function
     def generate_samples(self):
-        z = np.random.randint(258, size=(128), dtype=np.int64)
-        z = tf.dtypes.cast(z, tf.float32)
-        z = tf.reshape(z, [2, 1, 64])
+        z = tf.constant(tf.random.normal([2, 1, 32], dtype=tf.dtypes.float32))
         samples = self.G(z, training=False)
         return samples
 
@@ -271,12 +249,12 @@ class DatasetPipeline:
 
     def load_dataset(self):
         ds, self.dataset_info = tfds.load(name=self.dataset_name,
-                                          split='train[:80%]',  # tfds.Split.TRAIN,
-                                          with_info=True)  # in_memory=True
+                                          split='train[:80%]',
+                                          with_info=True)
 
         ds = self.dataset_cache(ds)
         ds = ds.shuffle(50000, reshuffle_each_iteration=True)
         ds = ds.apply(tf.data.experimental.unbatch())
-        ds = ds.batch(self.batch_size, drop_remainder=True)
+        ds = ds.batch(self.batch_size, drop_remainder=False)
         ds = ds.prefetch(tf.data.experimental.AUTOTUNE)
         return ds
