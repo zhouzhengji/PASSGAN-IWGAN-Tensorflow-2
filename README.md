@@ -1,9 +1,9 @@
-![](https://imgur.com/a/dSqaOks.png)
+![](https://i.imgur.com/Naorek1.png)
 
  PassGAN Evaluation
 =======================
 
-This is the release code repository for the evaluation of PassGAN(https://arxiv.org/pdf/1709.00440.pdf) built using Tensorflow 2, Python 3.6, Keras and Numpy to the described specification.
+This is the release code repository for the evaluation of PassGAN(https://arxiv.org/pdf/1709.00440.pdf) built using Tensorflow 2, Python 3.7, Keras and Numpy to the described specification.
 It contains my Tensorflow 2 implementation of an Improved Wasserstein GAN (IWGAN) with the intent of comparing the results found in the aformentioned paper.
 
 
@@ -28,5 +28,20 @@ Jetbrains-Pycharm or equivalent
 ```
 
 ### Installing
-
 The easiest way to get started
+
+```
+Setup environment according to the TENSORFLOW setup document included: Ubuntu required
+```
+
+```
+Pull the repository
+```
+
+```
+Import packages via Pycharm packet manager
+```
+
+```
+Run project with python GAN.py to pull dataset and begin training
+```
