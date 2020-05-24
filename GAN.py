@@ -36,7 +36,7 @@ control_flow_util.ENABLE_CONTROL_FLOW_V2 = True
 FLAGS = flags.FLAGS
 
 flags.DEFINE_integer('epochs', 1, 'Epochs to train.')
-flags.DEFINE_integer('iterations', 19900, 'Number of iterations')
+flags.DEFINE_integer('iterations', 199000, 'Number of iterations')
 flags.DEFINE_integer('checkpoints', 5000, 'Number of iterations per checkpoint')
 flags.DEFINE_integer('batch_size', 64, 'Size of batch.')
 flags.DEFINE_integer('layer_dim', 128, 'The hidden layer dimensionality for the generator.')
