@@ -2,7 +2,7 @@ FROM tensorflow/tensorflow:2.1.0-gpu
  
 #
 # Maintainer of this Image
-LABEL maintainer="rachelahorner@gmail.com" name="PassGAN Research" 
+LABEL maintainer="rachelahorner.com" name="PassGAN Research"
 
 #
 # Add test PassGAN files to container
